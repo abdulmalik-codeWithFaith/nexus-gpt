@@ -499,3 +499,5 @@ function MeetingSummary({
     </div>
   );
 }
+
+https://nexusgpt-iota.vercel.app/meeting/syntax-tv37?name=Abdulmalik
