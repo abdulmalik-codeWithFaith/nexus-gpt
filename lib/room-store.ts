@@ -80,6 +80,23 @@ function fromFirestoreDoc(doc: { fields?: { payload?: { stringValue?: string } }
   return safeParseRoom(doc?.fields?.payload?.stringValue ?? null);
 }
 
+function readLocalRoom(id: string): NexusRoom | null {
+  if (typeof window === "undefined") return null;
+  return safeParseRoom(localStorage.getItem(storageKey(id)));
+}
+
+function writeLocalRoom(room: NexusRoom) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(storageKey(room.id), JSON.stringify(room));
+}
+
+function notifyLocalSubscribers(room: NexusRoom) {
+  if (typeof BroadcastChannel === "undefined") return;
+  const channel = new BroadcastChannel(channelName(room.id));
+  channel.postMessage(room);
+  channel.close();
+}
+
 export async function createRoom(input: {
   name: string;
   hostName: string;
@@ -113,21 +130,29 @@ export async function createRoom(input: {
 }
 
 export async function getRoom(id: string): Promise<NexusRoom | null> {
-  const firestoreDoc = await firestoreRequest<{ fields?: { payload?: { stringValue?: string } } }>(`rooms/${id}`);
-  return fromFirestoreDoc(firestoreDoc) ?? safeParseRoom(localStorage.getItem(storageKey(id)));
+  try {
+    const firestoreDoc = await firestoreRequest<{ fields?: { payload?: { stringValue?: string } } }>(`rooms/${id}`);
+    return fromFirestoreDoc(firestoreDoc) ?? readLocalRoom(id);
+  } catch {
+    return readLocalRoom(id);
+  }
 }
 
 export async function saveRoom(room: NexusRoom): Promise<void> {
-  localStorage.setItem(storageKey(room.id), JSON.stringify(room));
+  writeLocalRoom(room);
   const config = firebaseConfig();
   if (config) {
-    await firestoreRequest(`rooms/${room.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(toFirestoreFields(room)),
-    });
+    try {
+      await firestoreRequest(`rooms/${room.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toFirestoreFields(room)),
+      });
+    } catch {
+      // Keep the hackathon demo usable when Firebase is misconfigured or offline.
+    }
   }
-  new BroadcastChannel(channelName(room.id)).postMessage(room);
+  notifyLocalSubscribers(room);
 }
 
 export function subscribeRoom(id: string, listener: Listener): () => void {
@@ -139,8 +164,6 @@ export function subscribeRoom(id: string, listener: Listener): () => void {
   if (channel) {
     channel.onmessage = (event) => listener(event.data as NexusRoom);
   }
-  const channel = new BroadcastChannel(channelName(id));
-  channel.onmessage = (event) => listener(event.data as NexusRoom);
 
   async function poll() {
     if (closed) return;
@@ -153,7 +176,7 @@ export function subscribeRoom(id: string, listener: Listener): () => void {
 
   return () => {
     closed = true;
-    channel.close();
+    channel?.close();
     window.clearInterval(interval);
     window.removeEventListener("storage", poll);
   };
