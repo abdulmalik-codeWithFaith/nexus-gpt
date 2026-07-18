@@ -28,11 +28,15 @@ Create `.env.local` when you want cloud-backed AI/persistence:
 ```bash
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-5.6
+NEXT_PUBLIC_FIREBASE_API_KEY=your-firebase-api-key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
-NEXT_PUBLIC_FIREBASE_API_KEY=your-firebase-web-api-key
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+NEXT_PUBLIC_FIREBASE_APP_ID=your-firebase-app-id
 ```
 
-If Firebase variables are omitted, rooms still work locally through `localStorage` and `BroadcastChannel`, which is useful for hackathon demos and offline development.
+Firebase is required for meeting links to work across devices. Add the Firebase variables in Vercel before sharing meeting links with other people.
 
 If `OPENAI_API_KEY` is omitted, the AI endpoints return deterministic fallback responses so the demo remains usable.
 
