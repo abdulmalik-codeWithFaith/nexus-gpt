@@ -11,7 +11,7 @@ import {
   Mail,
   Sparkles,
 } from "lucide-react";
-import { generateMeetingId } from "@/lib/id";
+import { createRoom } from "@/lib/room-store";
 
 export default function CreateMeetingPage() {
   const router = useRouter();
@@ -22,19 +22,21 @@ export default function CreateMeetingPage() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
-  function handleStart() {
+  async function handleStart() {
     if (sendSummary && email && !/^\S+@\S+\.\S+$/.test(email)) {
       setEmailError("That doesn't look like a valid email.");
       return;
     }
 
     setStarting(true);
-    const id = generateMeetingId();
+    const room = await createRoom({
+      name: meetingName,
+      hostName: displayName,
+      summaryEmail: sendSummary ? email : null,
+    });
     const params = new URLSearchParams();
-    params.set("name", meetingName.trim() || "Untitled session");
-    if (displayName.trim()) params.set("host", displayName.trim());
-    if (sendSummary && email.trim()) params.set("email", email.trim());
-    router.push(`/meeting/${id}?${params.toString()}`);
+    params.set("name", room.hostName);
+    router.push(`/meeting/${room.id}?${params.toString()}`);
   }
 
   return (
@@ -148,7 +150,7 @@ export default function CreateMeetingPage() {
                 </span>
                 <span>
                   <span className="text-sm text-foreground block">
-                    Email me the summary when we're done
+                    Email me the summary when we&apos;re done
                   </span>
                   <span className="text-xs text-muted block mt-0.5">
                     Nexus AI writes up decisions and action items automatically.
@@ -193,7 +195,7 @@ export default function CreateMeetingPage() {
 
           <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-muted font-mono">
             <Sparkles size={12} className="text-violet" />
-            Nexus AI joins automatically — with everyone's consent
+            Nexus AI joins automatically — with everyone&apos;s consent
           </p>
         </div>
       </section>
