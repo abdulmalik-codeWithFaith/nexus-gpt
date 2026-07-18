@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, ArrowRight, Link2 } from "lucide-react";
 import { parseMeetingInput } from "@/lib/id";
+import { getRoom } from "@/lib/room-store";
 
 export default function JoinMeetingModal({
   open,
@@ -14,15 +15,12 @@ export default function JoinMeetingModal({
 }) {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   useEffect(() => {
-    if (open) {
-      setValue("");
-      setError(null);
-      setTimeout(() => inputRef.current?.focus(), 10);
-    }
+    if (open) setTimeout(() => inputRef.current?.focus(), 10);
   }, [open]);
 
   useEffect(() => {
@@ -35,10 +33,23 @@ export default function JoinMeetingModal({
 
   if (!open) return null;
 
-  function handleJoin() {
+  function close() {
+    setValue("");
+    setError(null);
+    onClose();
+  }
+
+  async function handleJoin() {
     const id = parseMeetingInput(value);
     if (!id) {
       setError("Paste a meeting link or code to continue.");
+      return;
+    }
+    setChecking(true);
+    const room = await getRoom(id);
+    setChecking(false);
+    if (!room) {
+      setError("That room does not exist yet. Check the link or create a new meeting.");
       return;
     }
     router.push(`/meeting/${id}`);
@@ -47,7 +58,7 @@ export default function JoinMeetingModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
-      onClick={onClose}
+      onClick={close}
     >
       <div
         className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-2xl shadow-black/50"
@@ -61,7 +72,7 @@ export default function JoinMeetingModal({
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={close}
             aria-label="Close"
             className="text-muted hover:text-foreground transition-colors -mt-1 -mr-1 p-1 rounded-md hover:bg-surface-hover"
           >
@@ -82,7 +93,7 @@ export default function JoinMeetingModal({
               if (error) setError(null);
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleJoin();
+              if (e.key === "Enter") void handleJoin();
             }}
             placeholder="nexusgpt.dev/meeting/vector-4f2k"
             className="w-full rounded-lg border border-line bg-surface-2 py-3 pl-10 pr-3 text-sm font-mono text-foreground placeholder:text-muted/70 outline-none focus:border-teal/60 focus:ring-2 focus:ring-teal/20 transition-colors"
@@ -92,17 +103,18 @@ export default function JoinMeetingModal({
 
         <div className="flex items-center justify-end gap-3 mt-6">
           <button
-            onClick={onClose}
+            onClick={close}
             className="text-sm text-muted hover:text-foreground px-4 py-2.5 rounded-lg transition-colors"
           >
             Cancel
           </button>
           <button
-            onClick={handleJoin}
-            className="inline-flex items-center gap-2 text-sm font-medium bg-teal text-[#05201c] px-4 py-2.5 rounded-lg hover:bg-teal/90 transition-colors"
+            onClick={() => void handleJoin()}
+            disabled={checking}
+            className="inline-flex items-center gap-2 text-sm font-medium bg-teal text-[#05201c] px-4 py-2.5 rounded-lg hover:bg-teal/90 transition-colors disabled:opacity-60"
           >
-            Join meeting
-            <ArrowRight size={15} />
+            {checking ? "Checking..." : "Join meeting"}
+            {!checking && <ArrowRight size={15} />}
           </button>
         </div>
       </div>
