@@ -17,8 +17,8 @@ Nexus GPT is an AI-native collaborative workspace for developer meetings. It com
 - Next.js App Router
 - TypeScript
 - Tailwind CSS
-- Firebase Firestore REST persistence for cross-device meeting rooms
-- BroadcastChannel updates for same-browser instant refresh
+- Browser BroadcastChannel/localStorage fallback for instant local demos
+- Optional Firebase Firestore REST persistence
 - OpenAI Responses API for AI chat, extraction, and summaries
 
 ## Environment variables
