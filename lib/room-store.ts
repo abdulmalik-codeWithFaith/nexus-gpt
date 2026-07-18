@@ -132,6 +132,13 @@ export async function saveRoom(room: NexusRoom): Promise<void> {
 
 export function subscribeRoom(id: string, listener: Listener): () => void {
   let closed = false;
+  const channel =
+    typeof BroadcastChannel !== "undefined"
+      ? new BroadcastChannel(channelName(id))
+      : null;
+  if (channel) {
+    channel.onmessage = (event) => listener(event.data as NexusRoom);
+  }
   const channel = new BroadcastChannel(channelName(id));
   channel.onmessage = (event) => listener(event.data as NexusRoom);
 
