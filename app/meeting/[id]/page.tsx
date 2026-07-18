@@ -34,6 +34,8 @@ import {
   updateFiles,
   updateRoom,
 } from "@/lib/room-store";
+import { useMeshCall } from "@/lib/use-mesh-call";
+import { VideoTile } from "@/components/VideoTile";
 import type { AiPatch, ChatMessage, MeetingSummary, NexusRoom } from "@/lib/types";
 
 function useElapsedTime(startedAt?: number, endedAt?: number | null) {
@@ -62,11 +64,9 @@ function MeetingWorkspaceInner() {
   const searchParams = useSearchParams();
   const displayName = searchParams.get("name") || "Guest";
   const [room, setRoom] = useState<NexusRoom | null>(null);
+  const [selfId, setSelfId] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [micOn, setMicOn] = useState(true);
-  const [camOn, setCamOn] = useState(true);
-  const [sharingScreen, setSharingScreen] = useState(false);
   const [activeFile, setActiveFile] = useState("server.ts");
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -75,12 +75,28 @@ function MeetingWorkspaceInner() {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const elapsed = useElapsedTime(room?.createdAt, room?.endedAt);
+
+  const participantIds = useMemo(() => room?.participants.map((p) => p.id) ?? [], [room?.participants]);
+
+  const {
+    localStream,
+    remoteStreams,
+    micOn,
+    camOn,
+    sharingScreen,
+    mediaError,
+    toggleMic,
+    toggleCam,
+    toggleScreenShare,
+    leaveCall,
+  } = useMeshCall(params.id, selfId ?? "", participantIds);
+
   const participants = useMemo(
     () =>
       room?.participants.map((p) =>
-        p.name === displayName || p.isSelf ? { ...p, micOn, camOn } : p
+        p.id === selfId ? { ...p, micOn, camOn } : p
       ) ?? [],
-    [room?.participants, displayName, micOn, camOn]
+    [room?.participants, selfId, micOn, camOn]
   );
 
   useEffect(() => {
@@ -93,7 +109,13 @@ function MeetingWorkspaceInner() {
       }
       const joined = joinParticipant(existing, displayName);
       await saveRoom(joined);
-      if (!ignore) setRoom(joined);
+      if (!ignore) {
+        setRoom(joined);
+        // Find the participant entry that represents this browser so the
+        // mesh call and video tiles know which stream is "self".
+        const mine = joined.participants.find((p) => p.name === displayName);
+        setSelfId(mine?.id ?? null);
+      }
     }
     void bootstrap();
     return () => {
@@ -186,6 +208,7 @@ function MeetingWorkspaceInner() {
 
   async function endMeeting() {
     if (!room) return;
+    leaveCall();
     setThinking(true);
     const res = await fetch("/api/ai/summary", {
       method: "POST",
@@ -246,12 +269,21 @@ function MeetingWorkspaceInner() {
             </button>
           </div>
         </div>
+        {mediaError && (
+          <div className="bg-danger/10 border-t border-danger/30 text-danger text-xs px-4 py-2 text-center">
+            {mediaError} Check your browser&apos;s camera/microphone permissions and reload.
+          </div>
+        )}
         <div className="grid grid-cols-3 gap-px bg-line border-t border-line">
           {participants.map((p) => (
-            <div key={p.id} className="bg-surface-2 aspect-[16/7] sm:aspect-[16/5] flex items-center justify-center relative">
-              {p.camOn ? <div className="h-10 w-10 rounded-full bg-violet/20 border border-violet/30 flex items-center justify-center text-xs font-mono text-violet">{p.initials}</div> : <VideoOff size={16} className="text-muted" />}
-              <span className="absolute bottom-1.5 left-2 text-[10px] text-muted font-mono">{p.name}</span>
-              <span className="absolute bottom-1.5 right-2">{p.micOn ? <Mic size={11} className="text-muted" /> : <MicOff size={11} className="text-danger" />}</span>
+            <div key={p.id} className="bg-surface-2 aspect-[16/7] sm:aspect-[16/5] relative">
+              <VideoTile
+                stream={p.id === selfId ? localStream : remoteStreams[p.id] ?? null}
+                muted={p.id === selfId}
+                label={p.name}
+                initials={p.initials}
+              />
+              <span className="absolute bottom-1.5 right-2 z-10">{p.micOn ? <Mic size={11} className="text-white/80" /> : <MicOff size={11} className="text-danger" />}</span>
             </div>
           ))}
         </div>
@@ -300,7 +332,7 @@ function MeetingWorkspaceInner() {
               <div className="px-4 pb-3 flex flex-col gap-2">
                 {room.decisions.map((d) => <Artifact key={d.id} tone="text-teal" text={d.text} />)}
                 {room.actionItems.map((a) => <Artifact key={a.id} tone="text-amber" text={`${a.text}${a.owner ? ` — ${a.owner}` : ""}`} />)}
-                {room.decisions.length + room.actionItems.length === 0 && <p className="text-xs text-muted">Mention “decision:” or “todo:” in chat and Nexus AI will track it.</p>}
+                {room.decisions.length + room.actionItems.length === 0 && <p className="text-xs text-muted">Mention "decision:" or "todo:" in chat and Nexus AI will track it.</p>}
               </div>
             )}
           </div>
@@ -324,9 +356,9 @@ function MeetingWorkspaceInner() {
       </div>
 
       <div className="border-t border-line bg-surface flex items-center justify-center gap-3 py-3 shrink-0">
-        <ControlButton active={micOn} onClick={() => setMicOn((v) => !v)} onIcon={<Mic size={17} />} offIcon={<MicOff size={17} />} />
-        <ControlButton active={camOn} onClick={() => setCamOn((v) => !v)} onIcon={<Video size={17} />} offIcon={<VideoOff size={17} />} />
-        <button onClick={() => setSharingScreen((v) => !v)} className={`h-10 w-10 rounded-full flex items-center justify-center border transition-colors ${sharingScreen ? "bg-teal/20 border-teal/40 text-teal" : "bg-surface-2 border-line text-muted hover:text-foreground"}`} aria-label="Toggle screen share"><ScreenShare size={17} /></button>
+        <ControlButton active={micOn} onClick={toggleMic} onIcon={<Mic size={17} />} offIcon={<MicOff size={17} />} />
+        <ControlButton active={camOn} onClick={toggleCam} onIcon={<Video size={17} />} offIcon={<VideoOff size={17} />} />
+        <button onClick={() => void toggleScreenShare()} className={`h-10 w-10 rounded-full flex items-center justify-center border transition-colors ${sharingScreen ? "bg-teal/20 border-teal/40 text-teal" : "bg-surface-2 border-line text-muted hover:text-foreground"}`} aria-label="Toggle screen share"><ScreenShare size={17} /></button>
         <button onClick={() => void endMeeting()} className="h-10 px-5 rounded-full flex items-center gap-2 bg-danger/90 text-white hover:bg-danger transition-colors text-sm font-medium"><PhoneOff size={16} /> Leave</button>
       </div>
     </div>
