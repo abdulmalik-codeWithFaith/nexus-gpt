@@ -8,8 +8,15 @@ import { MeshCall } from "./webrtc";
  * (excluding no one — self is filtered internally) and it keeps
  * connections in sync as people join.
  */
-export function useMeshCall(roomId: string, selfId: string, participantIds: string[]) {
+export function useMeshCall(
+  roomId: string,
+  selfId: string,
+  participantIds: string[],
+  onCodeMessage?: (fromId: string, data: string) => void
+) {
   const callRef = useRef<MeshCall | null>(null);
+  const onCodeMessageRef = useRef(onCodeMessage);
+  onCodeMessageRef.current = onCodeMessage;
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [micOn, setMicOnState] = useState(true);
@@ -32,6 +39,7 @@ export function useMeshCall(roomId: string, selfId: string, participantIds: stri
           return next;
         });
       },
+      onCodeMessage: (id, data) => onCodeMessageRef.current?.(id, data),
     });
     callRef.current = call;
 
@@ -99,6 +107,10 @@ export function useMeshCall(roomId: string, selfId: string, participantIds: stri
     }
   }, [sharingScreen]);
 
+  const broadcastCode = useCallback((data: string) => {
+    callRef.current?.broadcastCode(data);
+  }, []);
+
   return {
     localStream,
     remoteStreams,
@@ -110,5 +122,6 @@ export function useMeshCall(roomId: string, selfId: string, participantIds: stri
     toggleCam,
     toggleScreenShare,
     leaveCall,
+    broadcastCode,
   };
 }

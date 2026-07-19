@@ -78,6 +78,15 @@ function MeetingWorkspaceInner() {
 
   const participantIds = useMemo(() => room?.participants.map((p) => p.id) ?? [], [room?.participants]);
 
+  function handleCodeMessage(_fromId: string, data: string) {
+    try {
+      const { file, content } = JSON.parse(data) as { file: string; content: string };
+      setRoom((prev) => (prev ? { ...prev, files: { ...prev.files, [file]: content } } : prev));
+    } catch {
+      // ignore malformed messages
+    }
+  }
+
   const {
     localStream,
     remoteStreams,
@@ -89,7 +98,8 @@ function MeetingWorkspaceInner() {
     toggleCam,
     toggleScreenShare,
     leaveCall,
-  } = useMeshCall(params.id, selfId ?? "", participantIds);
+    broadcastCode,
+  } = useMeshCall(params.id, selfId ?? "", participantIds, handleCodeMessage);
 
   const participants = useMemo(
     () =>
@@ -139,6 +149,15 @@ function MeetingWorkspaceInner() {
     navigator.clipboard?.writeText(url).catch(() => undefined);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
+  }
+
+  /** Local edit: save to Firestore for persistence, and broadcast instantly
+   * to every connected peer over the WebRTC data channel so it shows up
+   * live, without waiting on the ~1-2s Firestore poll. */
+  function handleCodeChange(content: string) {
+    if (!room) return;
+    void persist(updateFiles(room, { ...room.files, [activeFile]: content }));
+    broadcastCode(JSON.stringify({ file: activeFile, content }));
   }
 
   async function extractArtifacts(text: string) {
@@ -203,6 +222,7 @@ function MeetingWorkspaceInner() {
     if (!room || !patch) return;
     const next = updateFiles(room, { ...room.files, [patch.file]: patch.newContent });
     await persist(addMessage(next, { role: "ai", text: `Applied patch: ${patch.summary}` }));
+    broadcastCode(JSON.stringify({ file: patch.file, content: patch.newContent }));
     setPatch(null);
   }
 
@@ -314,7 +334,12 @@ function MeetingWorkspaceInner() {
           )}
           <div className="flex-1 min-h-0 flex bg-background">
             <LineNumbers text={activeCode} />
-            <textarea spellCheck={false} value={activeCode} onChange={(e) => void persist(updateFiles(room, { ...room.files, [activeFile]: e.target.value }))} className="flex-1 resize-none bg-transparent outline-none p-3 font-mono text-[13px] leading-relaxed text-foreground" />
+            <textarea
+              spellCheck={false}
+              value={activeCode}
+              onChange={(e) => handleCodeChange(e.target.value)}
+              className="flex-1 resize-none bg-transparent outline-none p-3 font-mono text-[13px] leading-relaxed text-foreground"
+            />
           </div>
         </div>
 

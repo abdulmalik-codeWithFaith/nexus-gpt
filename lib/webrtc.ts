@@ -10,11 +10,13 @@ const ICE_SERVERS: RTCIceServer[] = [
 const POLL_MS = 1500;
 
 type RemoteStreamHandler = (participantId: string, stream: MediaStream | null) => void;
+type CodeMessageHandler = (participantId: string, data: string) => void;
 
 interface MeshOptions {
   roomId: string;
   selfId: string;
   onRemoteStream: RemoteStreamHandler;
+  onCodeMessage?: CodeMessageHandler;
 }
 
 /**
@@ -27,8 +29,10 @@ export class MeshCall {
   private roomId: string;
   private selfId: string;
   private onRemoteStream: RemoteStreamHandler;
+  private onCodeMessage?: CodeMessageHandler;
   private peers = new Map<string, RTCPeerConnection>();
   private connecting = new Set<string>();
+  private dataChannels = new Map<string, RTCDataChannel>();
   private seenSignals = new Set<string>();
   private pollHandle: number | null = null;
   private cameraTrack: MediaStreamTrack | null = null;
@@ -40,6 +44,7 @@ export class MeshCall {
     this.roomId = opts.roomId;
     this.selfId = opts.selfId;
     this.onRemoteStream = opts.onRemoteStream;
+    this.onCodeMessage = opts.onCodeMessage;
   }
 
   /** Grabs mic/camera and starts listening for signals. Call once on mount. */
@@ -104,6 +109,17 @@ export class MeshCall {
       pc.addTrack(track, this.localStream!);
     });
 
+    // Only the initiator opens the data channel — it rides along in the
+    // same SDP offer/answer as the audio/video, so no extra signaling is
+    // needed. The other side receives it via ondatachannel.
+    if (this.selfId < remoteId) {
+      const channel = pc.createDataChannel("code-sync", { ordered: true });
+      this.setupDataChannel(remoteId, channel);
+    }
+    pc.ondatachannel = (event) => {
+      this.setupDataChannel(remoteId, event.channel);
+    };
+
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         void sendSignal(this.roomId, {
@@ -134,6 +150,28 @@ export class MeshCall {
     };
 
     return pc;
+  }
+
+  private setupDataChannel(remoteId: string, channel: RTCDataChannel) {
+    channel.onopen = () => {
+      console.log(`[nexus-mesh] code-sync channel open with ${remoteId}`);
+      this.dataChannels.set(remoteId, channel);
+    };
+    channel.onclose = () => {
+      this.dataChannels.delete(remoteId);
+    };
+    channel.onmessage = (event) => {
+      this.onCodeMessage?.(remoteId, event.data as string);
+    };
+  }
+
+  /** Sends a code update to every connected peer instantly (no Firestore round-trip). */
+  broadcastCode(data: string) {
+    this.dataChannels.forEach((channel) => {
+      if (channel.readyState === "open") {
+        channel.send(data);
+      }
+    });
   }
 
   private beginPolling() {
@@ -227,6 +265,7 @@ export class MeshCall {
       pc.close();
     });
     this.peers.clear();
+    this.dataChannels.clear();
     this.localStream?.getTracks().forEach((t) => t.stop());
     if (this.pollHandle !== null) window.clearInterval(this.pollHandle);
   }
