@@ -33,6 +33,7 @@ export class MeshCall {
   private cameraTrack: MediaStreamTrack | null = null;
 
   public localStream: MediaStream | null = null;
+  private readyPromise: Promise<MediaStream> | null = null;
 
   constructor(opts: MeshOptions) {
     this.roomId = opts.roomId;
@@ -41,20 +42,25 @@ export class MeshCall {
   }
 
   /** Grabs mic/camera and starts listening for signals. Call once on mount. */
-  async start(constraints: MediaStreamConstraints = { audio: true, video: true }) {
-    this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
-    this.cameraTrack = this.localStream.getVideoTracks()[0] ?? null;
-    this.beginPolling();
-    return this.localStream;
+  start(constraints: MediaStreamConstraints = { audio: true, video: true }): Promise<MediaStream> {
+    this.readyPromise = navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+      this.localStream = stream;
+      this.cameraTrack = stream.getVideoTracks()[0] ?? null;
+      this.beginPolling();
+      return stream;
+    });
+    return this.readyPromise;
   }
 
   /**
    * Ensures a connection exists to `remoteId`. Only the participant whose id
    * sorts lower initiates the offer — otherwise both sides would send offers
-   * simultaneously ("glare").
+   * simultaneously ("glare"). Always waits for local media first, so the
+   * offer/answer never goes out with a missing audio or video track.
    */
   async connectTo(remoteId: string) {
     if (remoteId === this.selfId || this.peers.has(remoteId)) return;
+    if (this.readyPromise) await this.readyPromise;
 
     const pc = this.createPeerConnection(remoteId);
     this.peers.set(remoteId, pc);
