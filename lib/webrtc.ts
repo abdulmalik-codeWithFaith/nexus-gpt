@@ -60,12 +60,15 @@ export class MeshCall {
    */
   async connectTo(remoteId: string) {
     if (remoteId === this.selfId || this.peers.has(remoteId)) return;
+    console.log(`[nexus-mesh] ${this.selfId} connecting to ${remoteId}, waiting for local media...`);
     if (this.readyPromise) await this.readyPromise;
+    console.log(`[nexus-mesh] ${this.selfId} local media ready, creating connection to ${remoteId}`);
 
     const pc = this.createPeerConnection(remoteId);
     this.peers.set(remoteId, pc);
 
     if (this.selfId < remoteId) {
+      console.log(`[nexus-mesh] ${this.selfId} is initiator for ${remoteId}, sending offer`);
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       await sendSignal(this.roomId, {
@@ -74,13 +77,20 @@ export class MeshCall {
         kind: "offer",
         data: JSON.stringify(offer),
       });
+    } else {
+      console.log(`[nexus-mesh] ${this.selfId} is NOT initiator for ${remoteId}, waiting for their offer`);
     }
   }
 
   private createPeerConnection(remoteId: string): RTCPeerConnection {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
-    this.localStream?.getTracks().forEach((track) => {
+    const localTracks = this.localStream?.getTracks() ?? [];
+    console.log(
+      `[nexus-mesh] ${this.selfId} creating RTCPeerConnection for ${remoteId} with ${localTracks.length} local tracks`,
+      localTracks.map((t) => t.kind)
+    );
+    localTracks.forEach((track) => {
       pc.addTrack(track, this.localStream!);
     });
 
@@ -96,10 +106,18 @@ export class MeshCall {
     };
 
     pc.ontrack = (event) => {
+      console.log(
+        `[nexus-mesh] ${this.selfId} received ${event.track.kind} track from ${remoteId}`
+      );
       this.onRemoteStream(remoteId, event.streams[0] ?? null);
     };
 
+    pc.oniceconnectionstatechange = () => {
+      console.log(`[nexus-mesh] ${this.selfId} <-> ${remoteId} iceConnectionState:`, pc.iceConnectionState);
+    };
+
     pc.onconnectionstatechange = () => {
+      console.log(`[nexus-mesh] ${this.selfId} <-> ${remoteId} connectionState:`, pc.connectionState);
       if (["failed", "closed", "disconnected"].includes(pc.connectionState)) {
         this.onRemoteStream(remoteId, null);
       }
@@ -124,6 +142,7 @@ export class MeshCall {
   }
 
   private async handleSignal(remoteId: string, kind: SignalKind, data: string) {
+    console.log(`[nexus-mesh] ${this.selfId} handling ${kind} from ${remoteId}`);
     let pc = this.peers.get(remoteId);
     if (!pc && kind !== "leave") {
       pc = this.createPeerConnection(remoteId);
