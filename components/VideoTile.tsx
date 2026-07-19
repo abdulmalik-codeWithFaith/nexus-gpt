@@ -17,10 +17,25 @@ export function VideoTile({
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (ref.current) ref.current.srcObject = stream;
-  }, [stream]);
+    const el = ref.current;
+    if (!el) return;
 
-  const hasVideo = !!stream && stream.getVideoTracks().some((t) => t.enabled);
+    el.srcObject = stream;
+
+    if (stream) {
+      const audioTracks = stream.getAudioTracks();
+      console.log(
+        `[nexus-video] ${label}: attaching stream with ${audioTracks.length} audio track(s)`,
+        audioTracks.map((t) => ({ enabled: t.enabled, muted: t.muted, readyState: t.readyState }))
+      );
+
+      el.play()
+        .then(() => console.log(`[nexus-video] ${label}: playback started (muted=${muted})`))
+        .catch((err) => console.error(`[nexus-video] ${label}: play() blocked ->`, err));
+    }
+  }, [stream, label, muted]);
+
+  const hasVideo = !!stream && stream.getVideoTracks().length > 0;
 
   return (
     <div className="relative h-full w-full bg-surface-2 flex items-center justify-center overflow-hidden">

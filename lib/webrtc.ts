@@ -28,6 +28,7 @@ export class MeshCall {
   private selfId: string;
   private onRemoteStream: RemoteStreamHandler;
   private peers = new Map<string, RTCPeerConnection>();
+  private connecting = new Set<string>();
   private seenSignals = new Set<string>();
   private pollHandle: number | null = null;
   private cameraTrack: MediaStreamTrack | null = null;
@@ -59,26 +60,35 @@ export class MeshCall {
    * offer/answer never goes out with a missing audio or video track.
    */
   async connectTo(remoteId: string) {
-    if (remoteId === this.selfId || this.peers.has(remoteId)) return;
-    console.log(`[nexus-mesh] ${this.selfId} connecting to ${remoteId}, waiting for local media...`);
-    if (this.readyPromise) await this.readyPromise;
-    console.log(`[nexus-mesh] ${this.selfId} local media ready, creating connection to ${remoteId}`);
+    if (remoteId === this.selfId || this.peers.has(remoteId) || this.connecting.has(remoteId)) return;
+    this.connecting.add(remoteId);
 
-    const pc = this.createPeerConnection(remoteId);
-    this.peers.set(remoteId, pc);
+    try {
+      console.log(`[nexus-mesh] ${this.selfId} connecting to ${remoteId}, waiting for local media...`);
+      if (this.readyPromise) await this.readyPromise;
 
-    if (this.selfId < remoteId) {
-      console.log(`[nexus-mesh] ${this.selfId} is initiator for ${remoteId}, sending offer`);
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      await sendSignal(this.roomId, {
-        from: this.selfId,
-        to: remoteId,
-        kind: "offer",
-        data: JSON.stringify(offer),
-      });
-    } else {
-      console.log(`[nexus-mesh] ${this.selfId} is NOT initiator for ${remoteId}, waiting for their offer`);
+      // Re-check after the await — another call may have finished in the meantime.
+      if (this.peers.has(remoteId)) return;
+
+      console.log(`[nexus-mesh] ${this.selfId} local media ready, creating connection to ${remoteId}`);
+      const pc = this.createPeerConnection(remoteId);
+      this.peers.set(remoteId, pc);
+
+      if (this.selfId < remoteId) {
+        console.log(`[nexus-mesh] ${this.selfId} is initiator for ${remoteId}, sending offer`);
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await sendSignal(this.roomId, {
+          from: this.selfId,
+          to: remoteId,
+          kind: "offer",
+          data: JSON.stringify(offer),
+        });
+      } else {
+        console.log(`[nexus-mesh] ${this.selfId} is NOT initiator for ${remoteId}, waiting for their offer`);
+      }
+    } finally {
+      this.connecting.delete(remoteId);
     }
   }
 
