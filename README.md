@@ -1,53 +1,161 @@
 # Nexus GPT
 
-Nexus GPT is an AI-native collaborative workspace for developer meetings. It combines a meeting room, shared code editor, synchronized room state, tracked decisions/action items, AI code review, one-click patch suggestions, and generated meeting summaries.
+Nexus GPT is an AI-powered collaborative workspace built for developers. It combines online meetings, collaborative coding, AI assistance, and automatic meeting documentation into one unified experience, helping engineering teams collaborate without constantly switching between multiple tools.
 
-## Hackathon demo flow
+Built for the **OpenAI Build Week** using **GPT-5.6**.
 
-1. Create a meeting from `/create`.
-2. Invite another browser tab with the room link.
-3. Edit code in the shared workspace.
-4. Ask Nexus AI to review the active file.
-5. Type `decision: use Postgres for sessions` or `todo: add validation tests` to see automatic artifact tracking.
-6. Click **Suggest patch** and **Apply** to demonstrate AI-assisted code changes.
-7. End the meeting to generate a structured summary.
+---
 
-## Stack
+# Features
 
-- Next.js App Router
+- Create and join meeting rooms
+- Public or private meeting links
+- Real-time collaborative code editor
+- AI coding assistant (Nexus AI)
+- AI code review
+- AI-generated code patches
+- Automatic decision tracking
+- Automatic action item extraction
+- AI meeting summaries
+- Shared workspace state
+- Responsive UI
+
+---
+
+# Demo Flow
+
+1. Open the landing page.
+2. Create a new meeting.
+3. Copy the meeting link.
+4. Join the meeting from another browser.
+5. Collaborate inside the shared code editor.
+6. Ask Nexus AI programming questions.
+7. Request AI code review.
+8. Generate an AI patch suggestion.
+9. End the meeting.
+10. View the AI-generated meeting summary.
+
+---
+
+# Tech Stack
+
+- Next.js (App Router)
 - TypeScript
 - Tailwind CSS
-- Browser BroadcastChannel/localStorage fallback for instant local demos
-- Optional Firebase Firestore REST persistence
-- OpenAI Responses API for AI chat, extraction, and summaries
+- OpenAI Responses API
+- GPT-5.6
+- Firebase (optional)
+- Browser BroadcastChannel
+- localStorage fallback
 
-## Environment variables
+---
 
-Create `.env.local` when you want cloud-backed AI/persistence:
+# How GPT-5.6 Powers Nexus GPT
+
+GPT-5.6 is used throughout the application to:
+
+- Answer developer questions
+- Review code
+- Suggest improvements
+- Generate code patches
+- Extract meeting decisions
+- Track action items
+- Produce structured meeting summaries
+
+---
+
+# How Codex Was Used
+
+Codex assisted during development by helping implement parts of the application, debugging issues, refactoring components, and accelerating development of core functionality.
+
+---
+
+# Installation
+
+Clone the repository.
 
 ```bash
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-5.6
-NEXT_PUBLIC_FIREBASE_API_KEY=your-firebase-api-key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
-NEXT_PUBLIC_FIREBASE_APP_ID=your-firebase-app-id
+git clone <repository-url>
+
+cd nexus-gpt
 ```
 
-Firebase is required for meeting links to work across devices. Add the Firebase variables in Vercel before sharing meeting links with other people.
+Install dependencies.
 
-If `OPENAI_API_KEY` is omitted, the AI endpoints return deterministic fallback responses so the demo remains usable.
+```bash
+npm install
+```
 
-## Scripts
+Create:
+
+```bash
+.env.local
+```
+
+Example:
+
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-5.6
+
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+```
+
+Run locally.
 
 ```bash
 npm run dev
-npm run lint
+```
+
+Build for production.
+
+```bash
 npm run build
 ```
 
-## Notes
+---
 
-The current video controls are a product shell: mic, camera, and screen-share controls update meeting UI state, but a managed media provider such as LiveKit or Daily should be added for production-quality audio/video.
+# Scripts
+
+```bash
+npm run dev
+npm run build
+npm run lint
+```
+
+---
+
+# Project Structure
+
+```
+app/
+components/
+hooks/
+lib/
+public/
+styles/
+```
+
+---
+
+# Future Improvements
+
+- Live WebRTC video/audio
+- Screen sharing
+- AI voice assistant
+- GitHub integration
+- Multi-file collaborative editing
+- Team workspaces
+- Calendar integration
+- Persistent cloud collaboration
+
+---
+
+# License
+
+MIT
